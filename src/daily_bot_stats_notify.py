@@ -126,7 +126,7 @@ def extract_data():
             rows.append({
                 "Segment": seg_name,
                 "Feature Group": grp_name,
-                "Clicks (12 Feb – Today)": total_clicks
+                "Clicks": total_clicks
             })
 
     df_clicks = pd.DataFrame(rows)
@@ -192,7 +192,7 @@ def lambda_handler(event, context):
         send_to_slack(message)
         return {"status": 200, "body": json.dumps({"message_sent": True})}
     except Exception as e:
-        error_message = f"Lambda job revii_stats_notify failed: {e}"
+        error_message = f"Lambda job daily_bot_stats_notify failed: {e}"
         logger.error(error_message, exc_info=True)
         send_sns_notification(error_message)
         raise
