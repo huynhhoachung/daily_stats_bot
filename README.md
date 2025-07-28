@@ -1,4 +1,4 @@
-# revii_stats_pipeline
+# daily_bot_stats_pipeline
 
 A serverless AWS pipeline to extract metrics from Redshift, process them, and send notifications to SNS and Slack.
 
@@ -6,23 +6,23 @@ A serverless AWS pipeline to extract metrics from Redshift, process them, and se
 
 ```mermaid
 flowchart LR
-    A[Lambda: revii_stats_extract] -->|Invoke| B[Amazon Redshift]
+    A[Lambda: daily_bot_stats_extract] -->|Invoke| B[Amazon Redshift]
     A -->|On Error| C[SNS Topic]
-    A -->|On Success| D[Lambda: revii_stats_notify]
+    A -->|On Success| D[Lambda: daily_bot_stats_notify]
     D --> E[Pendo API]
     D --> F[Slack Webhook]
 ```
 
 ## Components
 
-### revii_stats_extract.py
+### daily_bot_stats_extract.py
 - Connects to Redshift using environment variables.
 - Queries daily metrics, churn statistics, coupon stats, and signup-by-coupon stats.
 - Aggregates results into a dictionary.
-- Invokes the `revii-stats-notify` Lambda with the aggregated data.
+- Invokes the `daily_bot-stats-notify` Lambda with the aggregated data.
 - Sends SNS alerts on errors.
 
-### revii_stats_notify.py
+### daily_bot_stats_notify.py
 - Extracts Pendo feature and page view data for defined segments.
 - Builds a formatted Slack message including stats and metrics.
 - Sends the message to Slack via a webhook.
@@ -41,12 +41,12 @@ Example with AWS CLI:
 
 ```bash
 # Package extract Lambda
-zip deployment_extract.zip src/revii_stats_extract.py
-aws lambda update-function-code --function-name revii-stats-extract --zip-file fileb://deployment_extract.zip
+zip deployment_extract.zip src/daily_bot_stats_extract.py
+aws lambda update-function-code --function-name daily_bot-stats-extract --zip-file fileb://deployment_extract.zip
 
 # Package notify Lambda
-zip deployment_notify.zip src/revii_stats_notify.py
-aws lambda update-function-code --function-name revii-stats-notify --zip-file fileb://deployment_notify.zip
+zip deployment_notify.zip src/daily_bot_stats_notify.py
+aws lambda update-function-code --function-name daily_bot-stats-notify --zip-file fileb://deployment_notify.zip
 ```
 
 ## Testing
@@ -54,16 +54,16 @@ aws lambda update-function-code --function-name revii-stats-notify --zip-file fi
 - **Local dry-run**:
   ```bash
   export $(cat .env | xargs)
-  python src/revii_stats_extract.py
-  python src/revii_stats_notify.py
+  python src/daily_bot_stats_extract.py
+  python src/daily_bot_stats_notify.py
   ```
 - **AWS invoke**:
   ```bash
-  aws lambda invoke --function-name revii-stats-extract out_extract.json
-  aws lambda invoke --function-name revii-stats-notify out_notify.json
+  aws lambda invoke --function-name daily_bot-stats-extract out_extract.json
+  aws lambda invoke --function-name daily_bot-stats-notify out_notify.json
   ```
 
 ## Monitoring
 
 - View Lambda logs in CloudWatch Logs.
-- SNS sends alerts to your subscribed endpoint (e.g., email or Slack via AWS Chatbot).
+- SNS sends alerts to your subscribed endpoint (e.g., email or Slack via AWS Chatdaily_bot).
