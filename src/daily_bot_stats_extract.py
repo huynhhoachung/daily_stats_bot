@@ -36,13 +36,13 @@ def get_data_from_redshift():
 
     result = {}
 
-    # 1) Daily revii_stats_daily metrics
+    # 1) Daily daily_bot_stats_daily metrics
     static_metrics_query = """
     SELECT
         TO_CHAR(CURRENT_DATE - INTERVAL '1 day', 'MM/DD/YYYY') AS report_date,
         rsd.total,
         rsd.trials,
-        rsd.revii2025_trials,
+        rsd.daily_bot2025_trials,
         rsd.revenue30_trials,
         rsd.active_subscriptions,
         rsd.past_due_subscriptions,
@@ -53,7 +53,7 @@ def get_data_from_redshift():
         rsd.ios_first_time_downloads,
         rsd.ios_total_downloads,
         rsd.google_play_active_installs
-    FROM revii_stats_daily AS rsd;
+    FROM daily_bot_stats_daily AS rsd;
     """
     cursor.execute(static_metrics_query)
     row = cursor.fetchone()
@@ -71,7 +71,7 @@ def get_data_from_redshift():
         COUNT(DISTINCT CASE WHEN status = 'None'       THEN email END)   AS churn_none_all,
         COUNT(DISTINCT CASE WHEN status = 'New Signup' THEN email END)   AS churn_new_signup_all,
         COUNT(DISTINCT CASE WHEN status_date >= CURRENT_DATE - INTERVAL '7 days' THEN email END)   AS churn_past_due_all
-      FROM revii_signup_churn
+      FROM daily_bot_signup_churn
       WHERE email IS NOT NULL
     ),
     churn_last_week AS (
@@ -82,7 +82,7 @@ def get_data_from_redshift():
         COUNT(DISTINCT CASE WHEN status = 'None'       THEN email END)   AS churn_none_week,
         COUNT(DISTINCT CASE WHEN status = 'New Signup' THEN email END)   AS churn_new_signup_week,
         COUNT(DISTINCT CASE WHEN status_date >= CURRENT_DATE - INTERVAL '7 days' THEN email END)   AS churn_past_due_week
-      FROM revii_signup_churn
+      FROM daily_bot_signup_churn
       WHERE email IS NOT NULL
         AND status_date >= CURRENT_DATE - INTERVAL '7 days'
         AND status_date <  CURRENT_DATE
@@ -95,7 +95,7 @@ def get_data_from_redshift():
         COUNT(DISTINCT CASE WHEN status = 'None'       THEN email END)   AS churn_none_month,
         COUNT(DISTINCT CASE WHEN status = 'New Signup' THEN email END)   AS churn_new_signup_month,
         COUNT(DISTINCT CASE WHEN status_date >= CURRENT_DATE - INTERVAL '1 month' THEN email END)   AS churn_past_due_month
-      FROM revii_signup_churn
+      FROM daily_bot_signup_churn
       WHERE email IS NOT NULL
         AND status_date >= CURRENT_DATE - INTERVAL '1 month'
         AND status_date <  CURRENT_DATE
@@ -128,15 +128,15 @@ def get_data_from_redshift():
     # 3) Coupon stats
     coupon_query = """
     WITH
-        revii_coupon_trial AS (
+        daily_bot_coupon_trial AS (
             SELECT coupon_code, COUNT(DISTINCT email) AS coupon_active_subscriptions
-            FROM revii_trial_coupon_activity
+            FROM daily_bot_trial_coupon_activity
             WHERE email IS NOT NULL
             GROUP BY coupon_code
         ),
         all_time_conversion_rate_by_coupon AS (
             SELECT coupon_code, total_trials, total_conversions, percent_converted
-            FROM revii_all_time_conversion_rate_by_coupon
+            FROM daily_bot_all_time_conversion_rate_by_coupon
         ),
         base_data AS (
             SELECT
@@ -145,7 +145,7 @@ def get_data_from_redshift():
                 atc.total_trials,
                 atc.total_conversions,
                 atc.percent_converted
-            FROM revii_coupon_trial AS rct
+            FROM daily_bot_coupon_trial AS rct
             JOIN all_time_conversion_rate_by_coupon AS atc
               ON rct.coupon_code = atc.coupon_code
         )
@@ -169,7 +169,7 @@ def get_data_from_redshift():
             SUM(CASE WHEN coupon_code IS NULL OR coupon_code = 'No Coupon Code' THEN 1 ELSE 0 END) AS new_signups_without_coupon,
             SUM(CASE WHEN coupon_code IS NOT NULL AND coupon_code <> 'No Coupon Code' THEN 1 ELSE 0 END) AS new_signups_with_coupon,
             COUNT(1) AS total_new_signups
-          FROM revii_trial_signups_by_coupon
+          FROM daily_bot_trial_signups_by_coupon
           WHERE signup_date::date <= DATEADD(day, -1, CURRENT_DATE)
         ),
         t_last_week AS (
@@ -178,7 +178,7 @@ def get_data_from_redshift():
             SUM(CASE WHEN coupon_code IS NULL OR coupon_code = 'No Coupon Code' THEN 1 ELSE 0 END) AS new_signups_without_coupon,
             SUM(CASE WHEN coupon_code IS NOT NULL AND coupon_code <> 'No Coupon Code' THEN 1 ELSE 0 END) AS new_signups_with_coupon,
             COUNT(1) AS total_new_signups
-          FROM revii_trial_signups_by_coupon
+          FROM daily_bot_trial_signups_by_coupon
           WHERE signup_date::date >= DATEADD(day, -7, CURRENT_DATE)
             AND signup_date::date <  DATEADD(day, 0, CURRENT_DATE)
         ),
@@ -188,7 +188,7 @@ def get_data_from_redshift():
             SUM(CASE WHEN coupon_code IS NULL OR coupon_code = 'No Coupon Code' THEN 1 ELSE 0 END) AS new_signups_without_coupon,
             SUM(CASE WHEN coupon_code IS NOT NULL AND coupon_code <> 'No Coupon Code' THEN 1 ELSE 0 END) AS new_signups_with_coupon,
             COUNT(1) AS total_new_signups
-          FROM revii_trial_signups_by_coupon
+          FROM daily_bot_trial_signups_by_coupon
           WHERE signup_date::date >= DATEADD(month, -1, CURRENT_DATE)
             AND signup_date::date <  DATEADD(day, 0, CURRENT_DATE)
         )
@@ -218,7 +218,7 @@ def send_sns_notification(message):
         sns_client.publish(
             TopicArn=os.environ['SNS_TOPIC_ARN'],
             Subject='Slack Notification',
-            Message=f'Lambda job revii_stats_extract failed: {message}'
+            Message=f'Lambda job daily_bot_stats_extract failed: {message}'
         )
         logger.info("SNS notification sent successfully.")
     except Exception as e:
@@ -229,12 +229,12 @@ def lambda_handler(event, context):
     try:
         redshift_data = get_data_from_redshift()
         lambda_client.invoke(
-            FunctionName='revii-stats-notify',
+            FunctionName='daily_bot-stats-notify',
             InvocationType='Event',
             Payload=json.dumps(redshift_data)
         )
-        return {"status": "Payload sent to revii-stats-notify"}
+        return {"status": "Payload sent to daily_bot_stats_notify"}
     except Exception as e:
-        logger.error(f"Lambda revii_stats_extract failed: {e}", exc_info=True)
+        logger.error(f"Lambda daily_bot_stats_extract failed: {e}", exc_info=True)
         send_sns_notification(str(e))
         raise
